@@ -4,9 +4,10 @@ import { installFileActions } from './file-actions.ts'
 import { configurationFailure, channelSaveFailure, configurationMessage } from './update-configuration.ts'
 import type { DesktopChannelState, DesktopChannelChangeResult } from '@deepseek-ai/dsh-client-ui-settings-general/types'
 import { DesktopUpdateSettings } from './update-settings.ts'
-import { isDesktopUpdateChannel } from './settings-file.ts'
+import { DesktopSettingsFile, DesktopSettingsFileError, isDesktopUpdateChannel } from './settings-file.ts'
 import type { ProductEventMap, ProductEvent } from '@deepseek-ai/dsh-client-product-analytics/types'
 import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
+import { windowsWindowMaterialSupported } from './windows-material.ts'
 import { access, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -34,7 +35,10 @@ import { installDesktopFileDrag } from './file-drag.ts'
 import { installDesktopDirectoryPicker } from './directory-picker.ts'
 import { installMicrophonePermissions } from './microphone-permissions.ts'
 import { DesktopBackendController } from './backend-controller.ts'
-import { DESKTOP_IPC, SCHEME, assertDesktopSender, type DesktopUpdateState } from './ipc.ts'
+import {
+  DESKTOP_IPC, SCHEME, WINDOWS_MATERIAL_SUPPORTED_ARGUMENT, WINDOWS_TRANSPARENT_WINDOW_ARGUMENT, assertDesktopSender,
+  type DesktopAppearanceState, type DesktopUpdateState,
+} from './ipc.ts'
 import { readDeviceInfo } from './device-info.ts'
 import { desktopUpdateReadyConfirmation, formatDesktopMessage, resolveDesktopLocale, resolveDesktopStartupLocale } from './locale.ts'
 import type { DesktopMessages } from './locale.ts'
@@ -239,8 +243,9 @@ function developmentHostInspectPort(enabled: boolean): number | undefined {
  * Opaque chrome fallback matching the built-in sidebar palette (the resolved
  * `--dsw-static-neutral-bluish-900` / `-50` tokens). An approximation for
  * custom themes: Windows captions use the renderer's measured palette over
- * windowsAppearance IPC. The Windows workspace base stays opaque and follows
- * the effective light/dark theme; macOS uses it only while minimized or hidden.
+ * windowsAppearance IPC. The Windows workspace base stays opaque unless the
+ * optional transparent window mode supplies the acrylic backdrop; macOS uses it
+ * only while minimized or hidden.
  * @returns the sidebar fill hex for the effective application color scheme.
  */
 function chromeFallbackFill(): string {
@@ -261,7 +266,13 @@ function platformLoginUrl(authorizeUrl: string): string {
   return url.href
 }
 
-function createWindow(preload: string, show = false, primary = false): BrowserWindow {
+function createWindow(preload: string, show = false, primary = false, transparentWindow = false): BrowserWindow {
+  // The main process owns the material and its OS gate; the preload only mirrors
+  // the resulting state, so it receives both decisions as startup arguments.
+  const windowArguments = process.platform === 'win32' && primary ? [
+    ...(windowsWindowMaterialSupported() ? [WINDOWS_MATERIAL_SUPPORTED_ARGUMENT] : []),
+    ...(transparentWindow ? [WINDOWS_TRANSPARENT_WINDOW_ARGUMENT] : []),
+  ] : []
   const window = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -269,10 +280,14 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
     minHeight: 600,
     show,
     ...(process.platform === 'win32' && primary ? {
-      backgroundColor: chromeFallbackFill(),
+      backgroundColor: transparentWindow ? '#00000000' : chromeFallbackFill(),
       titleBarStyle: 'hidden' as const,
-      titleBarOverlay: { height: WINDOWS_TITLEBAR_HEIGHT, color: chromeFallbackFill(),
+      titleBarOverlay: { height: WINDOWS_TITLEBAR_HEIGHT,
+        color: transparentWindow ? '#00000000' : chromeFallbackFill(),
         symbolColor: nativeTheme.shouldUseDarkColors ? '#f9fafb' : '#0f1115' },
+      // Electron paints the Windows 11 acrylic backdrop behind the page; the
+      // renderer clears its page background through data-dsh-transparent-window.
+      ...(transparentWindow ? { backgroundMaterial: 'acrylic' as const } : {}),
     } : {}),
     // hiddenInset places traffic lights inside the sidebar; sidebar vibrancy
     // needs a transparent window background to show through the page.
@@ -287,6 +302,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
     } : {}),
     webPreferences: {
       preload,
+      ...(windowArguments.length > 0 ? { additionalArguments: windowArguments } : {}),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
@@ -309,13 +325,6 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
     // Reloads and navigations re-register the preload listener; resend the
     // current state so a fullscreen reload does not fall back to windowed CSS.
     window.webContents.on('did-finish-load', sendFullscreen)
-  }
-  if (process.platform === 'win32' && primary) {
-    const updateBackground = (): void => {
-      if (!window.isDestroyed()) window.setBackgroundColor(chromeFallbackFill())
-    }
-    nativeTheme.on('updated', updateBackground)
-    window.once('closed', () => { nativeTheme.removeListener('updated', updateBackground) })
   }
   if (process.platform === 'darwin') {
     // Deminiaturize reattaches the NSVisualEffectView material late
@@ -513,6 +522,25 @@ async function main(): Promise<void> {
     }
     return mainWindow
   }
+  /**
+   * The material applies at construction, so the running window state is fixed
+   * for this process while the preference can change for the next launch.
+   */
+  let transparentWindowPreference = desktopSettings.appearance.transparentWindow
+  const activeTransparentWindow = windowsWindowMaterialSupported() && transparentWindowPreference
+  const appearanceState = (): DesktopAppearanceState =>
+    ({ transparentWindow: transparentWindowPreference, active: activeTransparentWindow })
+  /**
+   * Apply the current opaque fallback after a theme change. The transparent
+   * mode keeps the constructor's transparent fill untouched so a runtime theme
+   * update cannot replace the surface the material needs.
+   * @param window - Owned Desktop window receiving the shell preference.
+   */
+  const applyWindowBackground = (window: BrowserWindow): void => {
+    if (window.isDestroyed()) return
+    if (process.platform !== 'win32' || activeTransparentWindow) return
+    window.setBackgroundColor(chromeFallbackFill())
+  }
   let navigation: { window: BrowserWindow; url: string; promise: Promise<void> } | undefined
   const navigateMain = (url: string): Promise<void> => {
     const window = mainWindow
@@ -697,6 +725,7 @@ async function main(): Promise<void> {
   const manifest: unknown = JSON.parse(await readFile(join(app.getAppPath(), 'package.json'), 'utf8'))
   const packagedChannel = desktopUpdateChannel(manifest)
   const channelSettings = new DesktopUpdateSettings(app.getPath('userData'), packagedChannel)
+  const appearanceSettings = new DesktopSettingsFile(app.getPath('userData'))
   const initialChannel = await channelSettings.load()
   channelState = { channel: initialChannel.kind === 'ready' ? initialChannel.channel : null,
     packagedChannel, changing: false,
@@ -884,6 +913,26 @@ async function main(): Promise<void> {
       || !event.senderFrame.url.startsWith(`${SCHEME}://app/`)) return
     if (source !== 'light' && source !== 'dark' && source !== 'system') return
     nativeTheme.themeSource = source
+  })
+  ipcMain.handle(DESKTOP_IPC.appearanceGet, (event) => {
+    assertProductSender(event)
+    return appearanceState()
+  })
+  ipcMain.handle(DESKTOP_IPC.appearanceSet, async (event, enabled: unknown) => {
+    assertProductSender(event)
+    if (typeof enabled !== 'boolean') throw new Error('desktop appearance: transparent window must be boolean')
+    if (!windowsWindowMaterialSupported()) throw new Error('desktop appearance: window material requires Windows 11 22H2')
+    if (enabled === transparentWindowPreference) return appearanceState()
+    // Persist only: the material is a construction-time window option, so the
+    // running window keeps its state and the next launch applies the choice.
+    try { await appearanceSettings.saveAppearance({ transparentWindow: enabled }) } catch (error) {
+      // A committed write whose lock cleanup failed still carries the preference.
+      if (!(error instanceof DesktopSettingsFileError) || error.problem.kind !== 'write'
+        || error.problem.effect !== 'written') throw error
+      console.warn('desktop appearance: settings write committed; lock release failed', error)
+    }
+    transparentWindowPreference = enabled
+    return appearanceState()
   })
   ipcMain.handle(DESKTOP_IPC.localeBootstrap, async (event) => {
     if (event.sender !== mainWindow?.webContents || event.senderFrame !== mainWindow.webContents.mainFrame
@@ -1320,11 +1369,18 @@ async function main(): Promise<void> {
     }
   }
   const createMainWindow = (): BrowserWindow => {
-    const window = createWindow(appPreload, false, true)
+    const window = createWindow(appPreload, false, true, activeTransparentWindow)
     mainWindow = window
     browserGuests.bind(window, (guest, name) => shortcuts.attachGuest(window, guest, name))
     shortcuts.attach(window)
     window.on('focus', automaticCheck)
+    if (process.platform === 'win32') {
+      // Palette changes reapply the window fill; the transparent mode keeps that
+      // fill transparent while the page tint follows the page tokens.
+      const updateBackground = (): void => { applyWindowBackground(window) }
+      nativeTheme.on('updated', updateBackground)
+      window.once('closed', () => { nativeTheme.removeListener('updated', updateBackground) })
+    }
     // Closing hides: the page and the Host keep running, and the next show resumes the same document.
     window.on('close', (event) => {
       if (quitting || shellInstallerOwnsQuit || sessionEnding) return
@@ -1372,7 +1428,7 @@ async function main(): Promise<void> {
     const window = mainWindow ?? createMainWindow()
     await navigateMain(applicationUrl)
     if (isQuitting() || recovery.active || window.isDestroyed()) return
-    if (process.platform === 'win32') window.setBackgroundColor(chromeFallbackFill())
+    if (process.platform === 'win32') applyWindowBackground(window)
     if (activate) window.show()
     else window.showInactive()
     enteredWorkspace = true

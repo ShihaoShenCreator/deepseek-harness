@@ -72,3 +72,22 @@ export interface DesktopChannelBridge {
    */
   subscribe(listener: (state: DesktopChannelState) => void): () => void
 }
+
+/** Shell-owned window appearance; the OS owns the material itself. */
+export interface DesktopAppearanceState {
+  /** Persisted preference, applied on the next launch. */
+  readonly transparentWindow: boolean
+  /** Whether the running window uses the material. */
+  readonly active: boolean
+}
+
+/** Optional Windows carrier API; it cannot choose a material or change other window options. */
+export interface DesktopAppearanceBridge {
+  /** @returns The persisted preference and the running window's material state. */
+  get(): Promise<DesktopAppearanceState>
+  /**
+   * @param enabled - Preference to persist for the next launch.
+   * @returns The saved preference and the unchanged running-window state.
+   */
+  setTransparentWindow(enabled: boolean): Promise<DesktopAppearanceState>
+}

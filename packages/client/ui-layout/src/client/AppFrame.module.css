@@ -50,6 +50,32 @@
   border-right: none;
 }
 
+/* Windows Desktop transparent-window mode: the OS paints an acrylic backdrop
+   behind the window. Mirror the macOS vibrancy layering — the frame and the
+   sidebar keep a translucent tint, the centre keeps the base fill — and drop
+   the opaque caption band so the material reaches the whole column. */
+:global(html[data-dsh-transparent-window]) .frame {
+  background: transparent;
+}
+
+:global(html[data-dsh-transparent-window]) .frame:not([data-sidebar-drawer]) .sidebarCol {
+  background: color-mix(in srgb, var(--dsw-specific-sidebar-fill) 62%, transparent);
+  border-right: none;
+}
+
+:global(html[data-dsh-transparent-window][data-windows-titlebar]) .frame::before {
+  background: color-mix(in srgb, var(--dsw-specific-sidebar-fill) 62%, transparent);
+}
+
+/* Windows Reduce Transparency flattens the OS material, so the thin tint reads
+   washed out; use the nearly opaque fill of the same token instead. */
+@media (prefers-reduced-transparency: reduce) {
+  :global(html[data-dsh-transparent-window]) .frame:not([data-sidebar-drawer]) .sidebarCol,
+  :global(html[data-dsh-transparent-window][data-windows-titlebar]) .frame::before {
+    background: color-mix(in srgb, var(--dsw-specific-sidebar-fill) 90%, transparent);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .frame[data-animating] {
     transition: none;

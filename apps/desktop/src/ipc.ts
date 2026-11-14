@@ -1,8 +1,10 @@
 import type { DesktopFileActions } from '@deepseek-ai/dsh-client-ui-file-actions/types'
 /** Typed preload operations exposed only by the Electron shell. */
 
-export type { DesktopChannelState, DesktopChannelChangeResult } from '@deepseek-ai/dsh-client-ui-settings-general/types'
-import type { DesktopChannelBridge, DesktopChannelState } from '@deepseek-ai/dsh-client-ui-settings-general/types'
+export type { DesktopChannelState, DesktopChannelChangeResult, DesktopAppearanceState } from '@deepseek-ai/dsh-client-ui-settings-general/types'
+import type {
+  DesktopAppearanceBridge, DesktopChannelBridge, DesktopChannelState,
+} from '@deepseek-ai/dsh-client-ui-settings-general/types'
 import type { DesktopKeyboardApi, DesktopShortcutsApi } from '@deepseek-ai/dsh-client-shortcuts/protocol'
 import type { IpcMainInvokeEvent } from 'electron'
 import type { DesktopBrowserBridge } from '@deepseek-ai/dsh-client-ui-sidebar-browser/types'
@@ -41,10 +43,17 @@ export const DESKTOP_IPC = {
   updatesOpen: 'dsh-desktop:updates-open',
   updatesPresentation: 'dsh-desktop:updates-presentation',
   nativeThemeSet: 'dsh-desktop:native-theme-set',
+  appearanceGet: 'dsh-desktop:appearance-get',
+  appearanceSet: 'dsh-desktop:appearance-set',
   windowFullscreen: 'dsh-desktop:window-fullscreen',
   windowsAppearance: 'dsh-desktop:windows-appearance',
   windowsMenu: 'dsh-desktop:windows-menu',
 } as const
+
+/** Renderer argument marking that the host can draw the Windows system material. */
+export const WINDOWS_MATERIAL_SUPPORTED_ARGUMENT = '--dsh-window-material-supported'
+/** Renderer argument carrying the active transparent-window state before the first paint. */
+export const WINDOWS_TRANSPARENT_WINDOW_ARGUMENT = '--dsh-transparent-window'
 
 /** Desktop release update state rendered by desktop-owned UI. */
 export type DesktopUpdatePreparationFailureKind = 'stop-failed' | 'tasks-changed' | 'tasks-unavailable' | 'fullscreen-timeout'
@@ -97,6 +106,8 @@ export interface DshDesktopProductApi {
   readonly fileDrag: DesktopFileDrag
   readonly keyboard: DesktopKeyboardApi
   readonly shortcuts: DesktopShortcutsApi
+  /** Windows-only window material preference; absent where Electron draws no native material. */
+  readonly appearance?: DesktopAppearanceBridge
   /**
    * Local machine description for the feedback questionnaire.
    * @returns `name=value` fields separated by `; `, with no hostname, user name, or serial number.

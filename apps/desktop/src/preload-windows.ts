@@ -1,8 +1,22 @@
 import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
-/** Synchronizes Windows context menus and caption colors with the application document. */
+/** Synchronizes Windows context menus, caption colors, and the transparent-window marker with the application document. */
 import { ipcRenderer } from 'electron'
-import { DESKTOP_IPC } from './ipc.ts'
+import { DESKTOP_IPC, WINDOWS_TRANSPARENT_WINDOW_ARGUMENT } from './ipc.ts'
 import { installWindowsMenu } from './preload-menu.ts'
+
+/**
+ * Shell-owned window material preference. The main process applies it while
+ * constructing the window, so the preload reads it once from the startup
+ * argument instead of subscribing to later preference changes.
+ */
+const transparentWindow = process.argv.includes(WINDOWS_TRANSPARENT_WINDOW_ARGUMENT)
+
+function markTransparency(): void {
+  const root = document.documentElement as HTMLElement | null
+  if (root === null) return
+  if (transparentWindow) root.dataset.dshTransparentWindow = ''
+  else delete root.dataset.dshTransparentWindow
+}
 
 /** Install the Windows-only titlebar marker and observe application language and palette changes. */
 export function syncWindowsAppearance(): void {
@@ -11,6 +25,7 @@ export function syncWindowsAppearance(): void {
     const root = document.documentElement
     root.dataset.windowsTitlebar = ''
     root.style.setProperty('--dsh-windows-titlebar-height', `${WINDOWS_TITLEBAR_HEIGHT}px`)
+    markTransparency()
   }
   // The root can be absent before the HTML parser creates it.
   if ((document.documentElement as HTMLElement | null) !== null) mark()
@@ -35,7 +50,8 @@ export function syncWindowsAppearance(): void {
     let previous = ''
     const send = (): void => {
       const style = getComputedStyle(probe)
-      const color = nativeColor(style.backgroundColor)
+      // The transparent material mode lets the page's own tint show through the caption area.
+      const color = transparentWindow ? 'rgba(0, 0, 0, 0)' : nativeColor(style.backgroundColor)
       const symbolColor = nativeColor(style.color)
       const values = [root.lang, color, symbolColor]
       const current = JSON.stringify(values)

@@ -50,6 +50,13 @@ html[data-platform='darwin'] body {
   isolation: isolate;
 }
 
+/* Windows Desktop transparent-window mode: the window's acrylic backdrop shows
+   only through a transparent page; AppFrame supplies the translucent tint. */
+html[data-dsh-transparent-window],
+html[data-dsh-transparent-window] body {
+  background: transparent;
+}
+
 /* The shipped Electron runtime inherits app-region and collects full boxes
    without overflow clips. Only explicit owners contribute geometry, so clipped
    descendants cannot subtract a chrome row after scrolling outside its view. */

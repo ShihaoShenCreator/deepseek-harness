@@ -8,7 +8,9 @@ import { join } from 'node:path'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import type { MenuItemConstructorOptions, MessageBoxOptions } from 'electron'
-import { DESKTOP_IPC, type DesktopUpdateState } from '../src/ipc.ts'
+import {
+  DESKTOP_IPC, WINDOWS_MATERIAL_SUPPORTED_ARGUMENT, WINDOWS_TRANSPARENT_WINDOW_ARGUMENT, type DesktopUpdateState,
+} from '../src/ipc.ts'
 import { MANDATORY_IPC } from '../src/mandatory-update-ipc.ts'
 import { DesktopHostFatalError, DesktopHostUncleanExitError } from '../src/host-process.ts'
 import { en, zh } from '../src/locale.ts'
@@ -478,7 +480,8 @@ beforeEach(() => {
   vi.stubEnv('DSH_DESKTOP_PNPM_ENTRY', 'test-pnpm')
   vi.stubEnv('DSH_DESKTOP_DSH_DIR', 'test-runtime')
   vi.stubEnv('DSH_DESKTOP_PRIMARY_RUNTIME_DIR', 'test-primary-runtime')
-  vi.stubGlobal('process', { ...process, platform: 'win32', arch: 'x64', resourcesPath: 'desktop-test-resources' })
+  vi.stubGlobal('process', { ...process, platform: 'win32', arch: 'x64', resourcesPath: 'desktop-test-resources',
+    getSystemVersion: vi.fn(() => '10.0.22631') })
   vi.stubEnv('DSH_DESKTOP_HOST_INSPECT_PORT', undefined)
   vi.stubEnv('DSH_DESKTOP_DEV_PROJECT_DIR', undefined)
   vi.stubEnv('DSH_DESKTOP_MANDATORY_UPDATE_CONFIG', undefined)
@@ -1177,6 +1180,73 @@ describe('desktop main startup', () => {
     await import('../src/main.ts')
     await harness.preparing.promise
     expect(harness.windows[0]!.options).toMatchObject({ backgroundColor: color })
+  })
+
+  it('opens the Windows workspace with the acrylic window material when the shell preference is on', async () => {
+    const directory = join(harness.app.getPath('userData'), 'desktop')
+    mkdirSync(directory, { recursive: true })
+    writeFileSync(join(directory, 'settings.json'), JSON.stringify({ appearance: { transparentWindow: true } }))
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    expect(harness.windows[0]!.options).toMatchObject({
+      backgroundColor: '#00000000',
+      backgroundMaterial: 'acrylic',
+      titleBarStyle: 'hidden',
+      titleBarOverlay: { height: WINDOWS_TITLEBAR_HEIGHT, color: '#00000000' },
+      webPreferences: { additionalArguments: [WINDOWS_MATERIAL_SUPPORTED_ARGUMENT, WINDOWS_TRANSPARENT_WINDOW_ARGUMENT] },
+    })
+  })
+
+  it('keeps a Windows 10 workspace opaque because the material requires Windows 11 22H2', async () => {
+    vi.stubGlobal('process', { ...process, getSystemVersion: () => '10.0.19045' })
+    const directory = join(harness.app.getPath('userData'), 'desktop')
+    mkdirSync(directory, { recursive: true })
+    writeFileSync(join(directory, 'settings.json'), JSON.stringify({ appearance: { transparentWindow: true } }))
+    await import('../src/main.ts')
+    await harness.preparing.promise
+    const options = harness.windows[0]!.options
+    expect(options).toMatchObject({ backgroundColor: '#f9fafb' })
+    expect(options).not.toHaveProperty('backgroundMaterial')
+    expect(options).not.toHaveProperty('webPreferences.additionalArguments')
+    await readyForUpdate()
+    await expect(invoke(DESKTOP_IPC.appearanceSet, 'app', true)).rejects.toThrow('Windows 11 22H2')
+  })
+
+  it('persists the Windows transparent-window preference for the next launch', async () => {
+    await readyForUpdate()
+    const window = harness.windows[0]!
+    expect(window.options).not.toHaveProperty('backgroundMaterial')
+    expect(await invoke(DESKTOP_IPC.appearanceGet, 'app')).toEqual({ transparentWindow: false, active: false })
+    expect(await invoke(DESKTOP_IPC.appearanceSet, 'app', true)).toEqual({ transparentWindow: true, active: false })
+    expect(window.setBackgroundColor).not.toHaveBeenCalledWith('#00000000')
+    expect(window.setTitleBarOverlay).not.toHaveBeenCalled()
+    const path = join(harness.app.getPath('userData'), 'desktop', 'settings.json')
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({ appearance: { transparentWindow: true } })
+    expect(await invoke(DESKTOP_IPC.appearanceSet, 'app', true)).toEqual({ transparentWindow: true, active: false })
+    expect(await invoke(DESKTOP_IPC.appearanceSet, 'app', false)).toEqual({ transparentWindow: false, active: false })
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({ appearance: { transparentWindow: false } })
+    await expect(invoke(DESKTOP_IPC.appearanceSet, 'app', 'yes')).rejects.toThrow('must be boolean')
+  })
+
+  it('accepts a committed transparent-window save even when lock release fails', async () => {
+    await readyForUpdate()
+    const { DesktopSettingsFile, DesktopSettingsFileError } = await import('../src/settings-file.ts')
+    const save = vi.spyOn(DesktopSettingsFile.prototype, 'saveAppearance').mockRejectedValueOnce(
+      new DesktopSettingsFileError({ kind: 'write', operation: 'save', effect: 'written' }, '/settings.json'))
+    try {
+      expect(await invoke(DESKTOP_IPC.appearanceSet, 'app', true)).toEqual({ transparentWindow: true, active: false })
+    } finally { save.mockRestore() }
+  })
+
+  it('keeps the previous preference when the transparent-window setting cannot be saved', async () => {
+    await readyForUpdate()
+    const { DesktopSettingsFile, DesktopSettingsFileError } = await import('../src/settings-file.ts')
+    const save = vi.spyOn(DesktopSettingsFile.prototype, 'saveAppearance').mockRejectedValueOnce(
+      new DesktopSettingsFileError({ kind: 'write', operation: 'save', effect: 'unchanged' }, '/settings.json'))
+    try {
+      await expect(invoke(DESKTOP_IPC.appearanceSet, 'app', true)).rejects.toThrow('desktop settings')
+      expect(await invoke(DESKTOP_IPC.appearanceGet, 'app')).toEqual({ transparentWindow: false, active: false })
+    } finally { save.mockRestore() }
   })
 
   describe.each(['win32', 'darwin'] as const)('Host theme on %s', (platform) => {

@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-11-14-desktop-windows-window-transparency.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-11-14-desktop-windows-window-transparency.md
+/agent-note-desktop-windows-window-transparency:
+  en: 3e51520e92d21967
+  zh: ab5c413e6f946114
+/agent-note-desktop-windows-window-transparency/problem:
+  en: e67dec9958ff0803
+  zh: 8650b8e45aa393b6
+/agent-note-desktop-windows-window-transparency/decision:
+  en: 9c4b25b0f13630d3
+  zh: ec4cb7f699ee8330
+/agent-note-desktop-windows-window-transparency/alternatives-considered:
+  en: 0a8a7ba204129392
+  zh: cb97e54e2b57e255
+/agent-note-desktop-windows-window-transparency/consequences:
+  en: d18f3d0558359276
+  zh: fb86129e674dc366

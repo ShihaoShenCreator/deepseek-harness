@@ -34,9 +34,11 @@ import type { ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client
 import { createSettingsShellStore } from './shell-store.ts'
 import { SettingsRoot } from './SettingsRoot.tsx'
 import { DesktopUpdateBadge } from './DesktopUpdateIndicator.tsx'
-import type { DesktopUpdateBridge } from '../types.ts'
+import type { DesktopAppearanceBridge, DesktopUpdateBridge } from '../types.ts'
 import { DesktopChannelSource } from './desktop-channel-source.ts'
 import { DesktopChannelRow, DesktopChannelToast } from './DesktopChannelRow.tsx'
+import { DesktopTransparencySource } from './desktop-transparency-source.ts'
+import { DesktopTransparencyRow } from './DesktopTransparencyRow.tsx'
 import { DesktopUpdateSource } from './desktop-update-source.ts'
 import { CloseLabel, HeaderContent, TriggerContent } from './chrome.tsx'
 import { GeneralSection } from './GeneralSection.tsx'
@@ -103,7 +105,9 @@ export function apply(ctx: ClientContext): void {
   }, CurrentVersionRow))
   ctx.effect(() => ctx.locale.register(NS, { zh, en, ja, es, fr, de, ru, pt }), 'ui-settings-general: dictionaries')
   const connection = ctx.get('connection') as ConnectionHandle
-  const carrier = (globalThis as typeof globalThis & { dshDesktop?: { protocolVersion: number; updates?: DesktopUpdateBridge } }).dshDesktop
+  const carrier = (globalThis as typeof globalThis & {
+    dshDesktop?: { protocolVersion: number; updates?: DesktopUpdateBridge; appearance?: DesktopAppearanceBridge }
+  }).dshDesktop
   const desktopUpdate = new DesktopUpdateSource(carrier?.protocolVersion === 1 ? carrier.updates : undefined)
   ctx.effect(() => () => { desktopUpdate.dispose() }, 'ui-settings-general: desktop update carrier')
   const channelBridge = carrier?.protocolVersion === 1 ? carrier.updates?.channels : undefined
@@ -119,6 +123,16 @@ export function apply(ctx: ClientContext): void {
       inject: () => ({ hooks: { channel: channel.store },
         dismiss: (sequence: number) => { channel.dismissNotice(sequence) }, openConfiguration: () => { desktopUpdate.open() } }),
     }, DesktopChannelToast))
+  }
+  const appearanceBridge = carrier?.protocolVersion === 1 ? carrier.appearance : undefined
+  if (appearanceBridge !== undefined) {
+    const transparency = new DesktopTransparencySource(appearanceBridge)
+    ctx.effect(() => () => { transparency.dispose() }, 'ui-settings-general: desktop transparency')
+    ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+      name: 'settings.general.item', id: 'desktop-transparency', order: 12, locale: NS,
+      inject: () => ({ hooks: { transparency: transparency.store },
+        select: (enabled: boolean) => transparency.select(enabled) }),
+    }, DesktopTransparencyRow))
   }
 
   ctx.slots.inject('sidebar.toggle.badge', () => ctx.slots.register({

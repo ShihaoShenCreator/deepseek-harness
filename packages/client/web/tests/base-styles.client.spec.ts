@@ -85,4 +85,12 @@ describe('web shell base.css', () => {
       `${literalContentSelectors.join(', ')} { text-autospace: no-autospace; }`,
     )
   })
+
+  it('clears the page background for the Desktop transparent-window material', () => {
+    // Electron paints the acrylic backdrop behind the window; only a
+    // transparent page lets it reach the frame's translucent tint.
+    expect(normalizedCss).toContain(
+      'html[data-dsh-transparent-window], html[data-dsh-transparent-window] body { background: transparent; }',
+    )
+  })
 })

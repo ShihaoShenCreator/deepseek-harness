@@ -35,6 +35,12 @@
   background: transparent;
 }
 
+/* Windows transparent-window mode: AppFrame's column owns the acrylic tint, so
+   this fill would double the alpha and flatten the material. */
+:global([data-dsh-transparent-window]) .root {
+  background: transparent;
+}
+
 /* Rail geometry (figma rail spec): 36x36 control boxes centered in the 56px
    rail (10px side padding), 12px vertical rhythm, 18px from the rail top to
    the whale's box (24px to the 24-wide whale glyph itself). */
@@ -616,6 +622,7 @@
 }
 
 :global([data-platform='darwin']) .scrollFade,
+:global([data-dsh-transparent-window]) .scrollFade,
 .collapsed .scrollFade,
 .collapsed .scrollArea::before,
 .collapsed .scrollArea::after {

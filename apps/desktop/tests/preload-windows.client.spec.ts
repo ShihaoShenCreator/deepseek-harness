@@ -1,19 +1,34 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from 'vitest'
-import { DESKTOP_IPC } from '../src/ipc.ts'
+import { DESKTOP_IPC, WINDOWS_TRANSPARENT_WINDOW_ARGUMENT } from '../src/ipc.ts'
 import { syncWindowsAppearance } from '../src/preload-windows.ts'
 
 const send = vi.hoisted(() => vi.fn())
 vi.mock('electron', () => ({ ipcRenderer: { send } }))
 vi.mock('../src/preload-menu.ts', () => ({ installWindowsMenu: () => ({ update: vi.fn(), dispose: vi.fn() }) }))
 
+function stubCaptionPalette(): void {
+  vi.spyOn(globalThis, 'getComputedStyle').mockImplementation(() => ({
+    backgroundColor: document.body.hasAttribute('data-ds-dark-theme') ? 'oklch(0.2 0 0)' : 'hsl(0 0% 100%)',
+    color: 'black',
+  }) as CSSStyleDeclaration)
+  const context = {
+    fillStyle: '', clearRect: vi.fn(), fillRect: vi.fn(),
+    getImageData: () => ({ data: new Uint8ClampedArray(context.fillStyle === 'black'
+      ? [0, 0, 0, 255] : context.fillStyle.startsWith('oklch') ? [27, 27, 28, 255] : [255, 255, 255, 255]) }),
+  }
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D)
+}
+
 afterEach(() => {
   window.dispatchEvent(new Event('pagehide'))
   document.documentElement.removeAttribute('data-windows-titlebar')
+  document.documentElement.removeAttribute('data-dsh-transparent-window')
   document.documentElement.style.removeProperty('--dsh-windows-titlebar-height')
   document.documentElement.lang = 'en'
   document.body.removeAttribute('data-ds-dark-theme')
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
   send.mockClear()
 })
 
@@ -27,16 +42,7 @@ it.each(['darwin', 'linux'] as const)('does not install Windows controls on %s',
 it('synchronizes live language and palette changes and stops observing a closed document', async () => {
   vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
   vi.spyOn(document, 'readyState', 'get').mockReturnValue('loading')
-  vi.spyOn(globalThis, 'getComputedStyle').mockImplementation(() => ({
-    backgroundColor: document.body.hasAttribute('data-ds-dark-theme') ? 'oklch(0.2 0 0)' : 'hsl(0 0% 100%)',
-    color: 'black',
-  }) as CSSStyleDeclaration)
-  const context = {
-    fillStyle: '', clearRect: vi.fn(), fillRect: vi.fn(),
-    getImageData: () => ({ data: new Uint8ClampedArray(context.fillStyle === 'black'
-      ? [0, 0, 0, 255] : context.fillStyle.startsWith('oklch') ? [27, 27, 28, 255] : [255, 255, 255, 255]) }),
-  }
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D)
+  stubCaptionPalette()
   document.documentElement.lang = 'en'
   syncWindowsAppearance()
   expect(send).not.toHaveBeenCalled()
@@ -52,4 +58,17 @@ it('synchronizes live language and palette changes and stops observing a closed 
   document.documentElement.lang = 'en'
   await new Promise<void>((resolve) => { queueMicrotask(resolve) })
   expect(send).not.toHaveBeenCalled()
+})
+
+it('marks the document and clears the caption color from the startup argument', async () => {
+  vi.stubGlobal('process', { ...process, platform: 'win32', argv: ['electron', WINDOWS_TRANSPARENT_WINDOW_ARGUMENT] })
+  vi.spyOn(document, 'readyState', 'get').mockReturnValue('loading')
+  stubCaptionPalette()
+  document.documentElement.lang = 'en'
+  vi.resetModules()
+  const { syncWindowsAppearance: fresh } = await import('../src/preload-windows.ts')
+  fresh()
+  window.dispatchEvent(new Event('DOMContentLoaded'))
+  expect(document.documentElement.hasAttribute('data-dsh-transparent-window')).toBe(true)
+  expect(send).toHaveBeenLastCalledWith(DESKTOP_IPC.windowsAppearance, 'en', 'rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 1)')
 })

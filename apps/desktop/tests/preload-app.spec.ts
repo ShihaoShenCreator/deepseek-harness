@@ -4,7 +4,7 @@ import { JSDOM } from 'jsdom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { installMandatoryUpdateOverlay } from '../src/preload-mandatory-overlay.ts'
 import { syncWindowsAppearance } from '../src/preload-windows.ts'
-import { DESKTOP_IPC, type DshDesktopProductApi } from '../src/ipc.ts'
+import { DESKTOP_IPC, WINDOWS_MATERIAL_SUPPORTED_ARGUMENT, type DshDesktopProductApi } from '../src/ipc.ts'
 
 const electron = vi.hoisted(() => ({
   contextBridge: { exposeInMainWorld: vi.fn() },
@@ -17,7 +17,9 @@ vi.mock('../src/preload-theme.ts', () => ({ syncNativeTheme: vi.fn() }))
 vi.mock('../src/preload-windows.ts', () => ({ syncWindowsAppearance: vi.fn() }))
 vi.mock('../src/preload-mandatory-overlay.ts', () => ({ installMandatoryUpdateOverlay: vi.fn() }))
 
-beforeEach(() => { vi.stubGlobal('process', { ...process, isMainFrame: true }) })
+beforeEach(() => {
+  vi.stubGlobal('process', { ...process, isMainFrame: true, getSystemVersion: () => '10.0.22631' })
+})
 afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.clearAllMocks(); vi.resetModules() })
 
 it('reads only native login API-key presence through the onboarding bridge', async () => {
@@ -310,4 +312,29 @@ it('exposes channel choices and scoped subscriptions without exposing updater ob
   expect(listener).toHaveBeenCalledWith(state)
   dispose()
   expect(electron.ipcRenderer.off).toHaveBeenCalledWith(DESKTOP_IPC.updatesChannelChanged, handler)
+})
+
+it.each(['win32', 'darwin'] as const)('exposes the window appearance bridge only when main reports support (%s)', async (platform) => {
+  vi.stubGlobal('process', { ...process, platform, isMainFrame: true,
+    argv: platform === 'win32' ? ['electron', WINDOWS_MATERIAL_SUPPORTED_ARGUMENT] : ['electron'] })
+  vi.stubGlobal('location', new URL('dsh-app://app/'))
+  await import('../src/preload-app.ts')
+  const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'dshDesktop')?.[1] as DshDesktopProductApi
+  if (platform !== 'win32') {
+    expect(api.appearance).toBeUndefined()
+    return
+  }
+  await api.appearance!.get()
+  await api.appearance!.setTransparentWindow(true)
+  expect(electron.ipcRenderer.invoke.mock.calls).toEqual([
+    [DESKTOP_IPC.appearanceGet], [DESKTOP_IPC.appearanceSet, true],
+  ])
+})
+
+it('withholds the window appearance bridge when main does not report support', async () => {
+  vi.stubGlobal('process', { ...process, platform: 'win32', isMainFrame: true, argv: ['electron'] })
+  vi.stubGlobal('location', new URL('dsh-app://app/'))
+  await import('../src/preload-app.ts')
+  const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'dshDesktop')?.[1] as DshDesktopProductApi
+  expect(api.appearance).toBeUndefined()
 })

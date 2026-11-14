@@ -29,7 +29,7 @@ it('distinguishes missing files from absent fields without creating a file durin
   await expect(readFile(file.path)).rejects.toMatchObject({ code: 'ENOENT' })
   await file.saveUpdates({})
   expect(await file.read()).toMatchObject({ kind: 'ready', fields: {
-    channel: { kind: 'absent' }, allowTestAuthPopupWindow: { kind: 'absent' },
+    channel: { kind: 'absent' }, allowTestAuthPopupWindow: { kind: 'absent' }, transparentWindow: { kind: 'absent' },
   } })
 })
 
@@ -59,8 +59,38 @@ it('keeps an invalid channel independent from the popup preference and repairs o
   } })
 })
 
-it('keeps a valid channel usable when the popup preference is invalid', async () => {
-  const { root, file } = await fixture('{"updates":{"channel":"nightly","allowTestAuthPopupWindow":"bad"}}')
+it('patches window appearance independently from update fields and preserves unknown fields', async () => {
+  const { file } = await fixture('{"appearance":{"future":1},"updates":{"channel":"stable"},"keep":true}')
+  await file.saveAppearance({ transparentWindow: true })
+  expect(JSON.parse(await readFile(file.path, 'utf8'))).toEqual({
+    appearance: { future: 1, transparentWindow: true }, updates: { channel: 'stable' }, keep: true,
+  })
+  expect(await file.read()).toMatchObject({ kind: 'ready', fields: {
+    transparentWindow: { kind: 'valid', value: true }, channel: { kind: 'valid', value: 'stable' },
+  } })
+})
+
+it('keeps an invalid window appearance field independent from valid update fields', async () => {
+  const { file } = await fixture('{"appearance":{"transparentWindow":1},"updates":{"channel":"nightly","allowTestAuthPopupWindow":true}}')
+  expect(await file.read()).toMatchObject({ kind: 'ready', fields: {
+    transparentWindow: { kind: 'invalid', error: { problem: { kind: 'invalid', reason: 'field', field: 'transparentWindow' } } },
+    channel: { kind: 'valid', value: 'nightly' },
+    allowTestAuthPopupWindow: { kind: 'valid', value: true },
+  } })
+})
+
+it('initializes both shell preference groups during exclusive creation', async () => {
+  const { file } = await fixture()
+  expect(await file.initialize()).toMatchObject({ kind: 'ready', fields: {
+    allowTestAuthPopupWindow: { kind: 'valid', value: false },
+    transparentWindow: { kind: 'valid', value: false },
+  } })
+  expect(JSON.parse(await readFile(file.path, 'utf8'))).toEqual({
+    updates: { allowTestAuthPopupWindow: false }, appearance: { transparentWindow: false },
+  })
+})
+
+it('keeps a valid channel usable when the popup preference is invalid', async () => {  const { root, file } = await fixture('{"updates":{"channel":"nightly","allowTestAuthPopupWindow":"bad"}}')
   vi.spyOn(console, 'warn').mockImplementation(() => {})
   expect((await readDesktopSettings(root)).updates.allowTestAuthPopupWindow).toBe(false)
   expect(await new DesktopUpdateSettings(root, 'stable').load()).toEqual({ kind: 'ready', channel: 'nightly' })
@@ -84,7 +114,10 @@ it('serializes initializers and patches from separate storage instances without 
   const other = new DesktopSettingsFile(root)
   await Promise.all([file.initialize(), other.initialize()])
   await Promise.all([file.saveUpdates({ channel: 'stable' }), other.saveUpdates({ allowTestAuthPopupWindow: true })])
-  expect(JSON.parse(await readFile(file.path, 'utf8'))).toEqual({ updates: { channel: 'stable', allowTestAuthPopupWindow: true } })
+  expect(JSON.parse(await readFile(file.path, 'utf8'))).toEqual({
+    updates: { channel: 'stable', allowTestAuthPopupWindow: true },
+    appearance: { transparentWindow: false },
+  })
   await expect(fs.access(`${file.path}.lock`)).rejects.toMatchObject({ code: 'ENOENT' })
 })
 

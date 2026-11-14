@@ -4,21 +4,31 @@ import { dirname, join } from 'node:path'
 import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { z } from 'zod'
 
-const preferencesSchema = z.object({
+const updateSchema = z.object({
   allowTestAuthPopupWindow: z.boolean(),
   channel: z.enum(['nightly', 'stable']),
 })
-const documentSchema = z.looseObject({ updates: z.looseObject({}).optional() })
+const appearanceSchema = z.object({
+  transparentWindow: z.boolean(),
+})
+const documentSchema = z.looseObject({
+  updates: z.looseObject({}).optional(),
+  appearance: z.looseObject({}).optional(),
+})
 
-/** Known field values before consumers supply defaults for absent fields. */
-export type DesktopUpdatePreferences = z.infer<typeof preferencesSchema>
-/** Unknown root and updates fields survive a read-modify-write operation. */
+/** Known update field values before consumers supply defaults for absent fields. */
+export type DesktopUpdatePreferences = z.infer<typeof updateSchema>
+/** Known window-appearance field values before consumers supply defaults for absent fields. */
+export type DesktopAppearancePreferences = z.infer<typeof appearanceSchema>
+/** Every known shell preference, keyed by its document field name. */
+export type DesktopPreferences = DesktopUpdatePreferences & DesktopAppearancePreferences
+/** Unknown root, updates and appearance fields survive a read-modify-write operation. */
 export type DesktopSettingsDocument = z.infer<typeof documentSchema>
 /** Handling-relevant failure details; validation failures never include document contents. */
 export type DesktopSettingsProblem =
   | { kind: 'read' }
   | { kind: 'invalid'; reason: 'json' | 'structure' }
-  | { kind: 'invalid'; reason: 'field'; field: keyof DesktopUpdatePreferences }
+  | { kind: 'invalid'; reason: 'field'; field: keyof DesktopPreferences }
   | { kind: 'write'; operation: 'initialize' | 'save'; effect: 'unchanged' | 'unknown' | 'written' }
 
 /** A storage or validation failure; business consumers decide fallback or suspension. */
@@ -46,10 +56,10 @@ export type DesktopSettingsRead =
   | {
     kind: 'ready'
     document: DesktopSettingsDocument
-    fields: { [K in keyof DesktopUpdatePreferences]: DesktopSettingsField<DesktopUpdatePreferences[K]> }
+    fields: { [K in keyof DesktopPreferences]: DesktopSettingsField<DesktopPreferences[K]> }
   }
 
-function field<T>(schema: z.ZodType<T>, value: unknown, name: keyof DesktopUpdatePreferences, path: string): DesktopSettingsField<T> {
+function field<T>(schema: z.ZodType<T>, value: unknown, name: keyof DesktopPreferences, path: string): DesktopSettingsField<T> {
   if (value === undefined) return { kind: 'absent' }
   const result = schema.safeParse(value)
   return result.success ? { kind: 'valid', value: result.data }
@@ -62,7 +72,7 @@ function field<T>(schema: z.ZodType<T>, value: unknown, name: keyof DesktopUpdat
  * @returns Whether the input is a supported channel.
  */
 export function isDesktopUpdateChannel(value: unknown): value is DesktopUpdatePreferences['channel'] {
-  return preferencesSchema.shape.channel.safeParse(value).success
+  return updateSchema.shape.channel.safeParse(value).success
 }
 
 /**
@@ -101,9 +111,11 @@ export class DesktopSettingsFile {
     if (!result.success) return { kind: 'error', error: new DesktopSettingsFileError({ kind: 'invalid', reason: 'structure' }, this.path) }
     const document = result.data
     return { kind: 'ready', document, fields: {
-      allowTestAuthPopupWindow: field(preferencesSchema.shape.allowTestAuthPopupWindow,
+      allowTestAuthPopupWindow: field(updateSchema.shape.allowTestAuthPopupWindow,
         document.updates?.allowTestAuthPopupWindow, 'allowTestAuthPopupWindow', this.path),
-      channel: field(preferencesSchema.shape.channel, document.updates?.channel, 'channel', this.path),
+      channel: field(updateSchema.shape.channel, document.updates?.channel, 'channel', this.path),
+      transparentWindow: field(appearanceSchema.shape.transparentWindow,
+        document.appearance?.transparentWindow, 'transparentWindow', this.path),
     } }
   }
 
@@ -121,19 +133,33 @@ export class DesktopSettingsFile {
   }
 
   /**
-   * Patch known fields under the shared writer lock, preserving unknown and unrelated invalid fields.
+   * Patch known update fields under the shared writer lock, preserving unknown and unrelated invalid fields.
    * Malformed JSON/structure is rejected; a missing document starts empty. External editors must
    * not write concurrently. No runtime settings change here. Write errors distinguish unchanged,
    * uncertain write completion, and a committed write whose lock cleanup failed; no rollback is attempted.
-   * @param updates - Typed fields to replace; omitted keys remain unchanged.
+   * @param updates - Typed update fields to replace; omitted keys remain unchanged.
    * @returns After atomic replacement and lock release; otherwise throws DesktopSettingsFileError.
    */
   async saveUpdates(updates: Partial<DesktopUpdatePreferences>): Promise<void> {
-    const result = await this.mutate({ kind: 'save', updates })
+    const result = await this.mutate({ kind: 'save', section: 'updates', updates })
     if (result.kind === 'error') throw result.error
   }
 
-  private async mutate(request: { kind: 'initialize' } | { kind: 'save'; updates: Partial<DesktopUpdatePreferences> }): Promise<DesktopSettingsRead> {
+  /**
+   * Patch known appearance fields under the shared writer lock with the same durability and
+   * failure semantics as {@link saveUpdates}.
+   * @param updates - Typed appearance fields to replace; omitted keys remain unchanged.
+   * @returns After atomic replacement and lock release; otherwise throws DesktopSettingsFileError.
+   */
+  async saveAppearance(updates: Partial<DesktopAppearancePreferences>): Promise<void> {
+    const result = await this.mutate({ kind: 'save', section: 'appearance', updates })
+    if (result.kind === 'error') throw result.error
+  }
+
+  private async mutate(request:
+    | { kind: 'initialize' }
+    | { kind: 'save'; section: 'updates'; updates: Partial<DesktopUpdatePreferences> }
+    | { kind: 'save'; section: 'appearance'; updates: Partial<DesktopAppearancePreferences> }): Promise<DesktopSettingsRead> {
     let effect: 'unchanged' | 'unknown' | 'written' = 'unchanged'
     try {
       await mkdir(dirname(this.path), { recursive: true, mode: 0o700 })
@@ -142,8 +168,11 @@ export class DesktopSettingsFile {
         if (current.kind === 'error') throw current.error
         if (request.kind === 'initialize' && current.kind !== 'missing') return current
         const document = current.kind === 'ready' ? current.document : {}
-        const updates = request.kind === 'initialize' ? { allowTestAuthPopupWindow: false } : request.updates
-        const next = { ...document, updates: { ...document.updates, ...updates } }
+        const next = request.kind === 'initialize'
+          ? { ...document,
+            updates: { ...document.updates, allowTestAuthPopupWindow: false },
+            appearance: { ...document.appearance, transparentWindow: false } }
+          : { ...document, [request.section]: { ...document[request.section], ...request.updates } }
         const raw = `${JSON.stringify(next, null, 2)}\n`
         effect = 'unknown'
         if (request.kind === 'initialize') {
