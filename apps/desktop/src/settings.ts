@@ -16,7 +16,7 @@ export async function readDesktopSettings(userData: string): Promise<DesktopSett
   const file = new DesktopSettingsFile(userData)
   const result = await file.initialize()
   const popup = result.kind === 'ready' ? result.fields.allowTestAuthPopupWindow : undefined
-  const appearance = result.kind === 'ready' ? result.fields.transparentWindow : undefined
+  const appearance = result.kind === 'ready' ? result.fields.windowMaterial : undefined
   const error = result.kind === 'error' ? result.error
     : popup?.kind === 'invalid' ? popup.error
       : appearance?.kind === 'invalid' ? appearance.error : undefined
@@ -27,6 +27,6 @@ export async function readDesktopSettings(userData: string): Promise<DesktopSett
   }
   return {
     updates: { allowTestAuthPopupWindow: popup?.kind === 'valid' ? popup.value : false },
-    appearance: { transparentWindow: appearance?.kind === 'valid' ? appearance.value : false },
+    appearance: { windowMaterial: appearance?.kind === 'valid' ? appearance.value : 'none' },
   }
 }

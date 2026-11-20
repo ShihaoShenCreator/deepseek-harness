@@ -34,11 +34,11 @@ import type { ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client
 import { createSettingsShellStore } from './shell-store.ts'
 import { SettingsRoot } from './SettingsRoot.tsx'
 import { DesktopUpdateBadge } from './DesktopUpdateIndicator.tsx'
-import type { DesktopAppearanceBridge, DesktopUpdateBridge } from '../types.ts'
+import type { DesktopAppearanceBridge, DesktopUpdateBridge, DesktopWindowMaterial } from '../types.ts'
 import { DesktopChannelSource } from './desktop-channel-source.ts'
 import { DesktopChannelRow, DesktopChannelToast } from './DesktopChannelRow.tsx'
-import { DesktopTransparencySource } from './desktop-transparency-source.ts'
-import { DesktopTransparencyRow } from './DesktopTransparencyRow.tsx'
+import { DesktopMaterialSource } from './desktop-material-source.ts'
+import { DesktopMaterialRow } from './DesktopMaterialRow.tsx'
 import { DesktopUpdateSource } from './desktop-update-source.ts'
 import { CloseLabel, HeaderContent, TriggerContent } from './chrome.tsx'
 import { GeneralSection } from './GeneralSection.tsx'
@@ -126,13 +126,13 @@ export function apply(ctx: ClientContext): void {
   }
   const appearanceBridge = carrier?.protocolVersion === 1 ? carrier.appearance : undefined
   if (appearanceBridge !== undefined) {
-    const transparency = new DesktopTransparencySource(appearanceBridge)
-    ctx.effect(() => () => { transparency.dispose() }, 'ui-settings-general: desktop transparency')
+    const material = new DesktopMaterialSource(appearanceBridge)
+    ctx.effect(() => () => { material.dispose() }, 'ui-settings-general: desktop window material')
     ctx.slots.inject('settings.general.item', () => ctx.slots.register({
-      name: 'settings.general.item', id: 'desktop-transparency', order: 12, locale: NS,
-      inject: () => ({ hooks: { transparency: transparency.store },
-        select: (enabled: boolean) => transparency.select(enabled) }),
-    }, DesktopTransparencyRow))
+      name: 'settings.general.item', id: 'desktop-material', order: 12, locale: NS,
+      inject: () => ({ hooks: { material: material.store },
+        select: (value: DesktopWindowMaterial) => material.select(value) }),
+    }, DesktopMaterialRow))
   }
 
   ctx.slots.inject('sidebar.toggle.badge', () => ctx.slots.register({

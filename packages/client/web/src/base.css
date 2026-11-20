@@ -50,8 +50,8 @@ html[data-platform='darwin'] body {
   isolation: isolate;
 }
 
-/* Windows Desktop transparent-window mode: the window's acrylic backdrop shows
-   only through a transparent page; AppFrame supplies the translucent tint. */
+/* Windows Desktop translucent-material mode: the window's Mica/Acrylic/Tabbed
+   backdrop shows only through a transparent page; AppFrame supplies the tint. */
 html[data-dsh-transparent-window],
 html[data-dsh-transparent-window] body {
   background: transparent;

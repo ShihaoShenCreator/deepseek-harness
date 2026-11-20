@@ -107,7 +107,7 @@ vi.mock('../src/tray.ts', () => ({ DesktopTray: class { relabel() {} dispose() {
 
 vi.mock('../src/paths.ts', () => ({ resolveDesktopPaths: () => ({ profile: '/profile' }) }))
 vi.mock('../src/settings.ts', () => ({ readDesktopSettings: () => ({
-  updates: { allowTestAuthPopupWindow: false }, appearance: { transparentWindow: false },
+  updates: { allowTestAuthPopupWindow: false }, appearance: { windowMaterial: 'none' },
 }) }))
 vi.mock('../src/login-shell-environment.ts', async importOriginal => ({
   ...await importOriginal<typeof import('../src/login-shell-environment.ts')>(),

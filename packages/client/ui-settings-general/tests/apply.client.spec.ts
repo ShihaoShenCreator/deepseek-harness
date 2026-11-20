@@ -18,8 +18,8 @@ import type { DeveloperToolsRowInjected } from '../src/client/DeveloperToolsRow.
 import { HostReleasePrompt, type HostReleasePromptInjected } from '../src/client/HostReleasePrompt.tsx'
 import { CloseLabel, HeaderContent, TriggerContent } from '../src/client/chrome.tsx'
 import type { DesktopChannelRowInjected, DesktopChannelToastInjected } from '../src/client/DesktopChannelRow.tsx'
-import type { DesktopTransparencyRowInjected } from '../src/client/DesktopTransparencyRow.tsx'
-import type { DesktopAppearanceBridge, DesktopChannelBridge } from '../src/types.ts'
+import type { DesktopMaterialRowInjected } from '../src/client/DesktopMaterialRow.tsx'
+import type { DesktopAppearanceBridge, DesktopAppearanceState, DesktopChannelBridge, DesktopWindowMaterial } from '../src/types.ts'
 import { GeneralSection } from '../src/client/GeneralSection.tsx'
 import { SettingsDocumentAction } from '../src/client/SettingsDocumentAction.tsx'
 import type { SettingsDocumentActionInjected } from '../src/client/SettingsDocumentAction.tsx'
@@ -243,21 +243,21 @@ describe('ui-settings-general apply', () => {
     expect(c.ctx.slots.entries('shell.overlay').some(entry => entry.options.id === 'desktop-channel-toast')).toBe(false)
   })
 
-  it('removes the Desktop transparency row when its plugin unloads', async ({ mock, start }) => {
-    const save = vi.fn(async (transparentWindow: boolean) => ({ transparentWindow, active: false }))
-    const appearance: DesktopAppearanceBridge = { get: async () => ({ transparentWindow: false, active: false }),
-      setTransparentWindow: save }
+  it('removes the Desktop window material row when its plugin unloads', async ({ mock, start }) => {
+    const save = vi.fn(async (windowMaterial: DesktopWindowMaterial): Promise<DesktopAppearanceState> => ({ windowMaterial, active: 'none' }))
+    const appearance: DesktopAppearanceBridge = { get: async () => ({ windowMaterial: 'none', active: 'none' }),
+      setWindowMaterial: save }
     vi.stubGlobal('dshDesktop', { protocolVersion: 1, appearance })
     onTestFinished(() => { vi.unstubAllGlobals() })
     const { c } = await client(mock, start)
-    const row = c.ctx.slots.entries('settings.general.item').find(row => row.options.id === 'desktop-transparency')!
+    const row = c.ctx.slots.entries('settings.general.item').find(row => row.options.id === 'desktop-material')!
     expect(row.options.order).toBe(12)
-    const select = row.inject!().select as DesktopTransparencyRowInjected['select']
-    await select(true)
-    expect(save).toHaveBeenCalledWith(true)
+    const select = row.inject!().select as DesktopMaterialRowInjected['select']
+    await select('acrylic')
+    expect(save).toHaveBeenCalledWith('acrylic')
     await c.unload(SELF)
     await c.flush()
-    expect(c.ctx.slots.entries('settings.general.item').some(row => row.options.id === 'desktop-transparency')).toBe(false)
+    expect(c.ctx.slots.entries('settings.general.item').some(row => row.options.id === 'desktop-material')).toBe(false)
   })
 
   it('the nav label thunk follows the active locale without re-registration', async ({ mock, start }) => {

@@ -1185,7 +1185,7 @@ describe('desktop main startup', () => {
   it('opens the Windows workspace with the acrylic window material when the shell preference is on', async () => {
     const directory = join(harness.app.getPath('userData'), 'desktop')
     mkdirSync(directory, { recursive: true })
-    writeFileSync(join(directory, 'settings.json'), JSON.stringify({ appearance: { transparentWindow: true } }))
+    writeFileSync(join(directory, 'settings.json'), JSON.stringify({ appearance: { windowMaterial: 'acrylic' } }))
     await import('../src/main.ts')
     await harness.preparing.promise
     expect(harness.windows[0]!.options).toMatchObject({
@@ -1201,7 +1201,7 @@ describe('desktop main startup', () => {
     vi.stubGlobal('process', { ...process, getSystemVersion: () => '10.0.19045' })
     const directory = join(harness.app.getPath('userData'), 'desktop')
     mkdirSync(directory, { recursive: true })
-    writeFileSync(join(directory, 'settings.json'), JSON.stringify({ appearance: { transparentWindow: true } }))
+    writeFileSync(join(directory, 'settings.json'), JSON.stringify({ appearance: { windowMaterial: 'acrylic' } }))
     await import('../src/main.ts')
     await harness.preparing.promise
     const options = harness.windows[0]!.options
@@ -1209,43 +1209,43 @@ describe('desktop main startup', () => {
     expect(options).not.toHaveProperty('backgroundMaterial')
     expect(options).not.toHaveProperty('webPreferences.additionalArguments')
     await readyForUpdate()
-    await expect(invoke(DESKTOP_IPC.appearanceSet, 'app', true)).rejects.toThrow('Windows 11 22H2')
+    await expect(invoke(DESKTOP_IPC.appearanceSet, 'app', 'acrylic')).rejects.toThrow('Windows 11 22H2')
   })
 
-  it('persists the Windows transparent-window preference for the next launch', async () => {
+  it('persists the Windows window material preference for the next launch', async () => {
     await readyForUpdate()
     const window = harness.windows[0]!
     expect(window.options).not.toHaveProperty('backgroundMaterial')
-    expect(await invoke(DESKTOP_IPC.appearanceGet, 'app')).toEqual({ transparentWindow: false, active: false })
-    expect(await invoke(DESKTOP_IPC.appearanceSet, 'app', true)).toEqual({ transparentWindow: true, active: false })
+    expect(await invoke(DESKTOP_IPC.appearanceGet, 'app')).toEqual({ windowMaterial: 'none', active: 'none' })
+    expect(await invoke(DESKTOP_IPC.appearanceSet, 'app', 'acrylic')).toEqual({ windowMaterial: 'acrylic', active: 'none' })
     expect(window.setBackgroundColor).not.toHaveBeenCalledWith('#00000000')
     expect(window.setTitleBarOverlay).not.toHaveBeenCalled()
     const path = join(harness.app.getPath('userData'), 'desktop', 'settings.json')
-    expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({ appearance: { transparentWindow: true } })
-    expect(await invoke(DESKTOP_IPC.appearanceSet, 'app', true)).toEqual({ transparentWindow: true, active: false })
-    expect(await invoke(DESKTOP_IPC.appearanceSet, 'app', false)).toEqual({ transparentWindow: false, active: false })
-    expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({ appearance: { transparentWindow: false } })
-    await expect(invoke(DESKTOP_IPC.appearanceSet, 'app', 'yes')).rejects.toThrow('must be boolean')
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({ appearance: { windowMaterial: 'acrylic' } })
+    expect(await invoke(DESKTOP_IPC.appearanceSet, 'app', 'acrylic')).toEqual({ windowMaterial: 'acrylic', active: 'none' })
+    expect(await invoke(DESKTOP_IPC.appearanceSet, 'app', 'none')).toEqual({ windowMaterial: 'none', active: 'none' })
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toMatchObject({ appearance: { windowMaterial: 'none' } })
+    await expect(invoke(DESKTOP_IPC.appearanceSet, 'app', 'yes')).rejects.toThrow('must be none, mica, acrylic, or tabbed')
   })
 
-  it('accepts a committed transparent-window save even when lock release fails', async () => {
+  it('accepts a committed window-material save even when lock release fails', async () => {
     await readyForUpdate()
     const { DesktopSettingsFile, DesktopSettingsFileError } = await import('../src/settings-file.ts')
     const save = vi.spyOn(DesktopSettingsFile.prototype, 'saveAppearance').mockRejectedValueOnce(
       new DesktopSettingsFileError({ kind: 'write', operation: 'save', effect: 'written' }, '/settings.json'))
     try {
-      expect(await invoke(DESKTOP_IPC.appearanceSet, 'app', true)).toEqual({ transparentWindow: true, active: false })
+      expect(await invoke(DESKTOP_IPC.appearanceSet, 'app', 'acrylic')).toEqual({ windowMaterial: 'acrylic', active: 'none' })
     } finally { save.mockRestore() }
   })
 
-  it('keeps the previous preference when the transparent-window setting cannot be saved', async () => {
+  it('keeps the previous preference when the window-material setting cannot be saved', async () => {
     await readyForUpdate()
     const { DesktopSettingsFile, DesktopSettingsFileError } = await import('../src/settings-file.ts')
     const save = vi.spyOn(DesktopSettingsFile.prototype, 'saveAppearance').mockRejectedValueOnce(
       new DesktopSettingsFileError({ kind: 'write', operation: 'save', effect: 'unchanged' }, '/settings.json'))
     try {
-      await expect(invoke(DESKTOP_IPC.appearanceSet, 'app', true)).rejects.toThrow('desktop settings')
-      expect(await invoke(DESKTOP_IPC.appearanceGet, 'app')).toEqual({ transparentWindow: false, active: false })
+      await expect(invoke(DESKTOP_IPC.appearanceSet, 'app', 'acrylic')).rejects.toThrow('desktop settings')
+      expect(await invoke(DESKTOP_IPC.appearanceGet, 'app')).toEqual({ windowMaterial: 'none', active: 'none' })
     } finally { save.mockRestore() }
   })
 

@@ -1,7 +1,7 @@
 import type { DesktopFileActions } from '@deepseek-ai/dsh-client-ui-file-actions/types'
 /** Typed preload operations exposed only by the Electron shell. */
 
-export type { DesktopChannelState, DesktopChannelChangeResult, DesktopAppearanceState } from '@deepseek-ai/dsh-client-ui-settings-general/types'
+export type { DesktopChannelState, DesktopChannelChangeResult, DesktopAppearanceState, DesktopWindowMaterial } from '@deepseek-ai/dsh-client-ui-settings-general/types'
 import type {
   DesktopAppearanceBridge, DesktopChannelBridge, DesktopChannelState,
 } from '@deepseek-ai/dsh-client-ui-settings-general/types'
@@ -52,7 +52,7 @@ export const DESKTOP_IPC = {
 
 /** Renderer argument marking that the host can draw the Windows system material. */
 export const WINDOWS_MATERIAL_SUPPORTED_ARGUMENT = '--dsh-window-material-supported'
-/** Renderer argument carrying the active transparent-window state before the first paint. */
+/** Renderer argument marking a translucent window material before the first paint. */
 export const WINDOWS_TRANSPARENT_WINDOW_ARGUMENT = '--dsh-transparent-window'
 
 /** Desktop release update state rendered by desktop-owned UI. */

@@ -4,7 +4,7 @@ import { installFileActions } from './file-actions.ts'
 import { configurationFailure, channelSaveFailure, configurationMessage } from './update-configuration.ts'
 import type { DesktopChannelState, DesktopChannelChangeResult } from '@deepseek-ai/dsh-client-ui-settings-general/types'
 import { DesktopUpdateSettings } from './update-settings.ts'
-import { DesktopSettingsFile, DesktopSettingsFileError, isDesktopUpdateChannel } from './settings-file.ts'
+import { DesktopSettingsFile, DesktopSettingsFileError, isDesktopUpdateChannel, isDesktopWindowMaterial } from './settings-file.ts'
 import type { ProductEventMap, ProductEvent } from '@deepseek-ai/dsh-client-product-analytics/types'
 import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
 import { windowsWindowMaterialSupported } from './windows-material.ts'
@@ -37,7 +37,7 @@ import { installMicrophonePermissions } from './microphone-permissions.ts'
 import { DesktopBackendController } from './backend-controller.ts'
 import {
   DESKTOP_IPC, SCHEME, WINDOWS_MATERIAL_SUPPORTED_ARGUMENT, WINDOWS_TRANSPARENT_WINDOW_ARGUMENT, assertDesktopSender,
-  type DesktopAppearanceState, type DesktopUpdateState,
+  type DesktopAppearanceState, type DesktopUpdateState, type DesktopWindowMaterial,
 } from './ipc.ts'
 import { readDeviceInfo } from './device-info.ts'
 import { desktopUpdateReadyConfirmation, formatDesktopMessage, resolveDesktopLocale, resolveDesktopStartupLocale } from './locale.ts'
@@ -266,12 +266,13 @@ function platformLoginUrl(authorizeUrl: string): string {
   return url.href
 }
 
-function createWindow(preload: string, show = false, primary = false, transparentWindow = false): BrowserWindow {
+function createWindow(preload: string, show = false, primary = false, windowMaterial: DesktopWindowMaterial = 'none'): BrowserWindow {
   // The main process owns the material and its OS gate; the preload only mirrors
-  // the resulting state, so it receives both decisions as startup arguments.
+  // the resulting translucency, so it receives both decisions as startup arguments.
+  const translucent = windowMaterial !== 'none'
   const windowArguments = process.platform === 'win32' && primary ? [
     ...(windowsWindowMaterialSupported() ? [WINDOWS_MATERIAL_SUPPORTED_ARGUMENT] : []),
-    ...(transparentWindow ? [WINDOWS_TRANSPARENT_WINDOW_ARGUMENT] : []),
+    ...(translucent ? [WINDOWS_TRANSPARENT_WINDOW_ARGUMENT] : []),
   ] : []
   const window = new BrowserWindow({
     width: 1280,
@@ -280,14 +281,14 @@ function createWindow(preload: string, show = false, primary = false, transparen
     minHeight: 600,
     show,
     ...(process.platform === 'win32' && primary ? {
-      backgroundColor: transparentWindow ? '#00000000' : chromeFallbackFill(),
+      backgroundColor: translucent ? '#00000000' : chromeFallbackFill(),
       titleBarStyle: 'hidden' as const,
       titleBarOverlay: { height: WINDOWS_TITLEBAR_HEIGHT,
-        color: transparentWindow ? '#00000000' : chromeFallbackFill(),
+        color: translucent ? '#00000000' : chromeFallbackFill(),
         symbolColor: nativeTheme.shouldUseDarkColors ? '#f9fafb' : '#0f1115' },
-      // Electron paints the Windows 11 acrylic backdrop behind the page; the
-      // renderer clears its page background through data-dsh-transparent-window.
-      ...(transparentWindow ? { backgroundMaterial: 'acrylic' as const } : {}),
+      // Electron paints the Windows 11 material behind the page; the renderer
+      // clears its page background through data-dsh-transparent-window.
+      ...(windowMaterial === 'none' ? {} : { backgroundMaterial: windowMaterial }),
     } : {}),
     // hiddenInset places traffic lights inside the sidebar; sidebar vibrancy
     // needs a transparent window background to show through the page.
@@ -526,19 +527,19 @@ async function main(): Promise<void> {
    * The material applies at construction, so the running window state is fixed
    * for this process while the preference can change for the next launch.
    */
-  let transparentWindowPreference = desktopSettings.appearance.transparentWindow
-  const activeTransparentWindow = windowsWindowMaterialSupported() && transparentWindowPreference
+  let windowMaterialPreference: DesktopWindowMaterial = desktopSettings.appearance.windowMaterial
+  const activeWindowMaterial: DesktopWindowMaterial = windowsWindowMaterialSupported() ? windowMaterialPreference : 'none'
   const appearanceState = (): DesktopAppearanceState =>
-    ({ transparentWindow: transparentWindowPreference, active: activeTransparentWindow })
+    ({ windowMaterial: windowMaterialPreference, active: activeWindowMaterial })
   /**
-   * Apply the current opaque fallback after a theme change. The transparent
-   * mode keeps the constructor's transparent fill untouched so a runtime theme
-   * update cannot replace the surface the material needs.
+   * Apply the current opaque fallback after a theme change. A translucent
+   * material keeps the constructor's transparent fill untouched so a runtime
+   * theme update cannot replace the surface the material needs.
    * @param window - Owned Desktop window receiving the shell preference.
    */
   const applyWindowBackground = (window: BrowserWindow): void => {
     if (window.isDestroyed()) return
-    if (process.platform !== 'win32' || activeTransparentWindow) return
+    if (process.platform !== 'win32' || activeWindowMaterial !== 'none') return
     window.setBackgroundColor(chromeFallbackFill())
   }
   let navigation: { window: BrowserWindow; url: string; promise: Promise<void> } | undefined
@@ -918,20 +919,20 @@ async function main(): Promise<void> {
     assertProductSender(event)
     return appearanceState()
   })
-  ipcMain.handle(DESKTOP_IPC.appearanceSet, async (event, enabled: unknown) => {
+  ipcMain.handle(DESKTOP_IPC.appearanceSet, async (event, material: unknown) => {
     assertProductSender(event)
-    if (typeof enabled !== 'boolean') throw new Error('desktop appearance: transparent window must be boolean')
+    if (!isDesktopWindowMaterial(material)) throw new Error('desktop appearance: window material must be none, mica, acrylic, or tabbed')
     if (!windowsWindowMaterialSupported()) throw new Error('desktop appearance: window material requires Windows 11 22H2')
-    if (enabled === transparentWindowPreference) return appearanceState()
+    if (material === windowMaterialPreference) return appearanceState()
     // Persist only: the material is a construction-time window option, so the
     // running window keeps its state and the next launch applies the choice.
-    try { await appearanceSettings.saveAppearance({ transparentWindow: enabled }) } catch (error) {
+    try { await appearanceSettings.saveAppearance({ windowMaterial: material }) } catch (error) {
       // A committed write whose lock cleanup failed still carries the preference.
       if (!(error instanceof DesktopSettingsFileError) || error.problem.kind !== 'write'
         || error.problem.effect !== 'written') throw error
       console.warn('desktop appearance: settings write committed; lock release failed', error)
     }
-    transparentWindowPreference = enabled
+    windowMaterialPreference = material
     return appearanceState()
   })
   ipcMain.handle(DESKTOP_IPC.localeBootstrap, async (event) => {
@@ -1369,7 +1370,7 @@ async function main(): Promise<void> {
     }
   }
   const createMainWindow = (): BrowserWindow => {
-    const window = createWindow(appPreload, false, true, activeTransparentWindow)
+    const window = createWindow(appPreload, false, true, activeWindowMaterial)
     mainWindow = window
     browserGuests.bind(window, (guest, name) => shortcuts.attachGuest(window, guest, name))
     shortcuts.attach(window)

@@ -29,7 +29,7 @@ it('distinguishes missing files from absent fields without creating a file durin
   await expect(readFile(file.path)).rejects.toMatchObject({ code: 'ENOENT' })
   await file.saveUpdates({})
   expect(await file.read()).toMatchObject({ kind: 'ready', fields: {
-    channel: { kind: 'absent' }, allowTestAuthPopupWindow: { kind: 'absent' }, transparentWindow: { kind: 'absent' },
+    channel: { kind: 'absent' }, allowTestAuthPopupWindow: { kind: 'absent' }, windowMaterial: { kind: 'absent' },
   } })
 })
 
@@ -61,19 +61,30 @@ it('keeps an invalid channel independent from the popup preference and repairs o
 
 it('patches window appearance independently from update fields and preserves unknown fields', async () => {
   const { file } = await fixture('{"appearance":{"future":1},"updates":{"channel":"stable"},"keep":true}')
-  await file.saveAppearance({ transparentWindow: true })
+  await file.saveAppearance({ windowMaterial: 'acrylic' })
   expect(JSON.parse(await readFile(file.path, 'utf8'))).toEqual({
-    appearance: { future: 1, transparentWindow: true }, updates: { channel: 'stable' }, keep: true,
+    appearance: { future: 1, windowMaterial: 'acrylic' }, updates: { channel: 'stable' }, keep: true,
   })
   expect(await file.read()).toMatchObject({ kind: 'ready', fields: {
-    transparentWindow: { kind: 'valid', value: true }, channel: { kind: 'valid', value: 'stable' },
+    windowMaterial: { kind: 'valid', value: 'acrylic' }, channel: { kind: 'valid', value: 'stable' },
   } })
 })
 
-it('keeps an invalid window appearance field independent from valid update fields', async () => {
-  const { file } = await fixture('{"appearance":{"transparentWindow":1},"updates":{"channel":"nightly","allowTestAuthPopupWindow":true}}')
+it('migrates the retired boolean transparent-window preference forward and drops it on save', async () => {
+  const { file } = await fixture('{"appearance":{"transparentWindow":true},"updates":{"channel":"stable"}}')
   expect(await file.read()).toMatchObject({ kind: 'ready', fields: {
-    transparentWindow: { kind: 'invalid', error: { problem: { kind: 'invalid', reason: 'field', field: 'transparentWindow' } } },
+    windowMaterial: { kind: 'valid', value: 'acrylic' }, channel: { kind: 'valid', value: 'stable' },
+  } })
+  await file.saveAppearance({ windowMaterial: 'mica' })
+  expect(JSON.parse(await readFile(file.path, 'utf8'))).toEqual({
+    appearance: { windowMaterial: 'mica' }, updates: { channel: 'stable' },
+  })
+})
+
+it('keeps an invalid window appearance field independent from valid update fields', async () => {
+  const { file } = await fixture('{"appearance":{"windowMaterial":"glass"},"updates":{"channel":"nightly","allowTestAuthPopupWindow":true}}')
+  expect(await file.read()).toMatchObject({ kind: 'ready', fields: {
+    windowMaterial: { kind: 'invalid', error: { problem: { kind: 'invalid', reason: 'field', field: 'windowMaterial' } } },
     channel: { kind: 'valid', value: 'nightly' },
     allowTestAuthPopupWindow: { kind: 'valid', value: true },
   } })
@@ -83,10 +94,10 @@ it('initializes both shell preference groups during exclusive creation', async (
   const { file } = await fixture()
   expect(await file.initialize()).toMatchObject({ kind: 'ready', fields: {
     allowTestAuthPopupWindow: { kind: 'valid', value: false },
-    transparentWindow: { kind: 'valid', value: false },
+    windowMaterial: { kind: 'valid', value: 'none' },
   } })
   expect(JSON.parse(await readFile(file.path, 'utf8'))).toEqual({
-    updates: { allowTestAuthPopupWindow: false }, appearance: { transparentWindow: false },
+    updates: { allowTestAuthPopupWindow: false }, appearance: { windowMaterial: 'none' },
   })
 })
 
@@ -116,7 +127,7 @@ it('serializes initializers and patches from separate storage instances without 
   await Promise.all([file.saveUpdates({ channel: 'stable' }), other.saveUpdates({ allowTestAuthPopupWindow: true })])
   expect(JSON.parse(await readFile(file.path, 'utf8'))).toEqual({
     updates: { channel: 'stable', allowTestAuthPopupWindow: true },
-    appearance: { transparentWindow: false },
+    appearance: { windowMaterial: 'none' },
   })
   await expect(fs.access(`${file.path}.lock`)).rejects.toMatchObject({ code: 'ENOENT' })
 })

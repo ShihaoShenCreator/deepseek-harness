@@ -4,12 +4,14 @@ import { dirname, join } from 'node:path'
 import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { z } from 'zod'
 
+/** Windows 11 window backdrop materials; values mirror the client `DesktopWindowMaterial`. */
+const windowMaterialSchema = z.enum(['none', 'mica', 'acrylic', 'tabbed'])
 const updateSchema = z.object({
   allowTestAuthPopupWindow: z.boolean(),
   channel: z.enum(['nightly', 'stable']),
 })
 const appearanceSchema = z.object({
-  transparentWindow: z.boolean(),
+  windowMaterial: windowMaterialSchema,
 })
 const documentSchema = z.looseObject({
   updates: z.looseObject({}).optional(),
@@ -67,12 +69,33 @@ function field<T>(schema: z.ZodType<T>, value: unknown, name: keyof DesktopPrefe
 }
 
 /**
+ * Resolve the material from the current appearance section, migrating the
+ * retired boolean `transparentWindow` forward: true means acrylic, false means
+ * none. A present `windowMaterial` always wins.
+ */
+function migratedWindowMaterial(appearance: DesktopSettingsDocument['appearance']): unknown {
+  if (appearance?.windowMaterial !== undefined) return appearance.windowMaterial
+  if (appearance?.transparentWindow === true) return 'acrylic'
+  if (appearance?.transparentWindow === false) return 'none'
+  return undefined
+}
+
+/**
  * Validate a channel at the IPC boundary using the same schema as file loading.
  * @param value - Untrusted input.
  * @returns Whether the input is a supported channel.
  */
 export function isDesktopUpdateChannel(value: unknown): value is DesktopUpdatePreferences['channel'] {
   return updateSchema.shape.channel.safeParse(value).success
+}
+
+/**
+ * Validate a window material at the IPC boundary using the same schema as file loading.
+ * @param value - Untrusted input.
+ * @returns Whether the input is a supported window material.
+ */
+export function isDesktopWindowMaterial(value: unknown): value is DesktopAppearancePreferences['windowMaterial'] {
+  return windowMaterialSchema.safeParse(value).success
 }
 
 /**
@@ -114,8 +137,8 @@ export class DesktopSettingsFile {
       allowTestAuthPopupWindow: field(updateSchema.shape.allowTestAuthPopupWindow,
         document.updates?.allowTestAuthPopupWindow, 'allowTestAuthPopupWindow', this.path),
       channel: field(updateSchema.shape.channel, document.updates?.channel, 'channel', this.path),
-      transparentWindow: field(appearanceSchema.shape.transparentWindow,
-        document.appearance?.transparentWindow, 'transparentWindow', this.path),
+      windowMaterial: field(appearanceSchema.shape.windowMaterial,
+        migratedWindowMaterial(document.appearance), 'windowMaterial', this.path),
     } }
   }
 
@@ -168,11 +191,19 @@ export class DesktopSettingsFile {
         if (current.kind === 'error') throw current.error
         if (request.kind === 'initialize' && current.kind !== 'missing') return current
         const document = current.kind === 'ready' ? current.document : {}
-        const next = request.kind === 'initialize'
-          ? { ...document,
+        let next: DesktopSettingsDocument
+        if (request.kind === 'initialize') {
+          next = { ...document,
             updates: { ...document.updates, allowTestAuthPopupWindow: false },
-            appearance: { ...document.appearance, transparentWindow: false } }
-          : { ...document, [request.section]: { ...document[request.section], ...request.updates } }
+            appearance: { ...document.appearance, windowMaterial: 'none' } }
+        } else if (request.section === 'appearance') {
+          // Retire the legacy boolean on the first write; `windowMaterial` replaces it.
+          const appearance = { ...document.appearance }
+          delete appearance.transparentWindow
+          next = { ...document, appearance: { ...appearance, ...request.updates } }
+        } else {
+          next = { ...document, [request.section]: { ...document[request.section], ...request.updates } }
+        }
         const raw = `${JSON.stringify(next, null, 2)}\n`
         effect = 'unknown'
         if (request.kind === 'initialize') {

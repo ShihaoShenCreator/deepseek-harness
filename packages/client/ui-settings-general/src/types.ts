@@ -73,21 +73,24 @@ export interface DesktopChannelBridge {
   subscribe(listener: (state: DesktopChannelState) => void): () => void
 }
 
+/** Windows 11 window backdrop materials the Desktop shell can draw. */
+export type DesktopWindowMaterial = 'none' | 'mica' | 'acrylic' | 'tabbed'
+
 /** Shell-owned window appearance; the OS owns the material itself. */
 export interface DesktopAppearanceState {
   /** Persisted preference, applied on the next launch. */
-  readonly transparentWindow: boolean
-  /** Whether the running window uses the material. */
-  readonly active: boolean
+  readonly windowMaterial: DesktopWindowMaterial
+  /** Material the running window was constructed with; a change needs a restart. */
+  readonly active: DesktopWindowMaterial
 }
 
-/** Optional Windows carrier API; it cannot choose a material or change other window options. */
+/** Optional Windows carrier API; it cannot change other window options. */
 export interface DesktopAppearanceBridge {
   /** @returns The persisted preference and the running window's material state. */
   get(): Promise<DesktopAppearanceState>
   /**
-   * @param enabled - Preference to persist for the next launch.
+   * @param material - Preference to persist for the next launch.
    * @returns The saved preference and the unchanged running-window state.
    */
-  setTransparentWindow(enabled: boolean): Promise<DesktopAppearanceState>
+  setWindowMaterial(material: DesktopWindowMaterial): Promise<DesktopAppearanceState>
 }

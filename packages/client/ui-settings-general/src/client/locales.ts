@@ -2,10 +2,14 @@
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
-  'desktop.transparency.title': '透明窗口',
-  'desktop.transparency.description': '让桌面壁纸透过窗口显示（Windows 11 亚克力材质）。',
-  'desktop.transparency.restart': '重启应用后生效。',
-  'desktop.transparency.error': '设置保存失败，请重试。',
+  'desktop.material.title': '窗口材质',
+  'desktop.material.description': '选择窗口的背景材质（Windows 11）。',
+  'desktop.material.restart': '重启应用后生效。',
+  'desktop.material.error': '设置保存失败，请重试。',
+  'desktop.material.none': '不透明',
+  'desktop.material.mica': 'Mica',
+  'desktop.material.acrylic': 'Acrylic',
+  'desktop.material.tabbed': 'Tabbed',
   'desktop.channel.title': '更新渠道',
   'desktop.channel.description': '正式版适合日常使用；开发版可提前体验新功能，但可能不稳定。',
   'desktop.channel.stable': '正式版',
@@ -78,10 +82,14 @@ export type SettingsKey = keyof typeof zh
 
 /** English dictionary, checked complete against the zh key set. */
 export const en = {
-  'desktop.transparency.title': 'Transparent window',
-  'desktop.transparency.description': 'Let the desktop show through the window with Windows 11 acrylic.',
-  'desktop.transparency.restart': 'Takes effect after restarting the app.',
-  'desktop.transparency.error': 'Could not save the setting. Please try again.',
+  'desktop.material.title': 'Window material',
+  'desktop.material.description': 'Choose the window background material (Windows 11).',
+  'desktop.material.restart': 'Takes effect after restarting the app.',
+  'desktop.material.error': 'Could not save the setting. Please try again.',
+  'desktop.material.none': 'Opaque',
+  'desktop.material.mica': 'Mica',
+  'desktop.material.acrylic': 'Acrylic',
+  'desktop.material.tabbed': 'Tabbed',
   'desktop.channel.title': 'Update channel',
   'desktop.channel.description': 'Stable is suitable for everyday use. Development offers early access to new features but may be unstable.',
   'desktop.channel.stable': 'Stable',
@@ -151,10 +159,14 @@ export const en = {
 
 /** Japanese copy, checked against the English keys. */
 export const ja = {
-  'desktop.transparency.title': '透明ウィンドウ',
-  'desktop.transparency.description': 'Windows 11 のアクリル素材でデスクトップをウィンドウに透かします。',
-  'desktop.transparency.restart': 'アプリを再起動すると反映されます。',
-  'desktop.transparency.error': '設定を保存できませんでした。もう一度お試しください。',
+  'desktop.material.title': 'ウィンドウ素材',
+  'desktop.material.description': 'ウィンドウの背景素材を選択します（Windows 11）。',
+  'desktop.material.restart': 'アプリを再起動すると反映されます。',
+  'desktop.material.error': '設定を保存できませんでした。もう一度お試しください。',
+  'desktop.material.none': '不透明',
+  'desktop.material.mica': 'Mica',
+  'desktop.material.acrylic': 'Acrylic',
+  'desktop.material.tabbed': 'Tabbed',
   'desktop.channel.title': '更新チャンネル',
   'desktop.channel.description': '安定版は日常的な使用に適しています。開発版では新機能をいち早く試せますが、不安定な場合があります。',
   'desktop.channel.stable': '安定版',
@@ -224,10 +236,14 @@ export const ja = {
 
 /** Spanish dictionary, checked against the English keys. */
 export const es = {
-  'desktop.transparency.title': 'Ventana transparente',
-  'desktop.transparency.description': 'Deja que el escritorio se vea a través de la ventana con el acrílico de Windows 11.',
-  'desktop.transparency.restart': 'Se aplica al reiniciar la aplicación.',
-  'desktop.transparency.error': 'No se pudo guardar la configuración. Inténtalo de nuevo.',
+  'desktop.material.title': 'Material de la ventana',
+  'desktop.material.description': 'Elige el material de fondo de la ventana (Windows 11).',
+  'desktop.material.restart': 'Se aplica al reiniciar la aplicación.',
+  'desktop.material.error': 'No se pudo guardar la configuración. Inténtalo de nuevo.',
+  'desktop.material.none': 'Opaco',
+  'desktop.material.mica': 'Mica',
+  'desktop.material.acrylic': 'Acrylic',
+  'desktop.material.tabbed': 'Tabbed',
   'desktop.channel.title': 'Canal de actualizaciones',
   'desktop.channel.description': 'Estable es adecuado para el uso diario. Desarrollo permite probar nuevas funciones antes, pero puede ser inestable.',
   'desktop.channel.stable': 'Estable',
@@ -297,10 +313,14 @@ export const es = {
 
 /** French dictionary, checked against the English keys. */
 export const fr = {
-  'desktop.transparency.title': 'Fenêtre transparente',
-  'desktop.transparency.description': 'Laisse le bureau apparaître à travers la fenêtre grâce à l’acrylique de Windows 11.',
-  'desktop.transparency.restart': 'Prend effet après le redémarrage de l’application.',
-  'desktop.transparency.error': 'Impossible d’enregistrer le réglage. Réessayez.',
+  'desktop.material.title': 'Matériau de la fenêtre',
+  'desktop.material.description': 'Choisissez le matériau de fond de la fenêtre (Windows 11).',
+  'desktop.material.restart': 'Prend effet après le redémarrage de l’application.',
+  'desktop.material.error': 'Impossible d’enregistrer le réglage. Réessayez.',
+  'desktop.material.none': 'Opaque',
+  'desktop.material.mica': 'Mica',
+  'desktop.material.acrylic': 'Acrylic',
+  'desktop.material.tabbed': 'Tabbed',
   'desktop.channel.title': 'Canal de mise à jour',
   'desktop.channel.description': 'Stable convient à un usage quotidien. Développement permet de découvrir les nouveautés en avance, mais peut être instable.',
   'desktop.channel.stable': 'Stable',
@@ -370,10 +390,14 @@ export const fr = {
 
 /** German dictionary, checked against the English keys. */
 export const de = {
-  'desktop.transparency.title': 'Transparentes Fenster',
-  'desktop.transparency.description': 'Lässt den Desktop mit Windows 11 Acryl durch das Fenster scheinen.',
-  'desktop.transparency.restart': 'Wirkt nach einem Neustart der App.',
-  'desktop.transparency.error': 'Einstellung konnte nicht gespeichert werden. Bitte erneut versuchen.',
+  'desktop.material.title': 'Fenstermaterial',
+  'desktop.material.description': 'Wählen Sie das Hintergrundmaterial des Fensters (Windows 11).',
+  'desktop.material.restart': 'Wirkt nach einem Neustart der App.',
+  'desktop.material.error': 'Einstellung konnte nicht gespeichert werden. Bitte erneut versuchen.',
+  'desktop.material.none': 'Undurchsichtig',
+  'desktop.material.mica': 'Mica',
+  'desktop.material.acrylic': 'Acrylic',
+  'desktop.material.tabbed': 'Tabbed',
   'desktop.channel.title': 'Update-Kanal',
   'desktop.channel.description': 'Stabil eignet sich für den Alltag. Entwicklung bietet frühzeitigen Zugang zu neuen Funktionen, kann aber instabil sein.',
   'desktop.channel.stable': 'Stabil',
@@ -443,10 +467,14 @@ export const de = {
 
 /** Russian dictionary, checked against the English keys. */
 export const ru = {
-  'desktop.transparency.title': 'Прозрачное окно',
-  'desktop.transparency.description': 'Показывает рабочий стол сквозь окно с акриловым материалом Windows 11.',
-  'desktop.transparency.restart': 'Применяется после перезапуска приложения.',
-  'desktop.transparency.error': 'Не удалось сохранить настройку. Повторите попытку.',
+  'desktop.material.title': 'Материал окна',
+  'desktop.material.description': 'Выберите материал фона окна (Windows 11).',
+  'desktop.material.restart': 'Применяется после перезапуска приложения.',
+  'desktop.material.error': 'Не удалось сохранить настройку. Повторите попытку.',
+  'desktop.material.none': 'Непрозрачный',
+  'desktop.material.mica': 'Mica',
+  'desktop.material.acrylic': 'Acrylic',
+  'desktop.material.tabbed': 'Tabbed',
   'desktop.channel.title': 'Канал обновлений',
   'desktop.channel.description': 'Стабильный канал подходит для повседневного использования. Канал разработки позволяет раньше попробовать новые функции, но может быть нестабильным.',
   'desktop.channel.stable': 'Стабильный',
@@ -516,10 +544,14 @@ export const ru = {
 
 /** Portuguese dictionary, checked against the English keys. */
 export const pt = {
-  'desktop.transparency.title': 'Janela transparente',
-  'desktop.transparency.description': 'Mostra a área de trabalho através da janela com o acrílico do Windows 11.',
-  'desktop.transparency.restart': 'Entra em vigor após reiniciar o aplicativo.',
-  'desktop.transparency.error': 'Não foi possível salvar a configuração. Tente novamente.',
+  'desktop.material.title': 'Material da janela',
+  'desktop.material.description': 'Escolha o material de fundo da janela (Windows 11).',
+  'desktop.material.restart': 'Entra em vigor após reiniciar o aplicativo.',
+  'desktop.material.error': 'Não foi possível salvar a configuração. Tente novamente.',
+  'desktop.material.none': 'Opaco',
+  'desktop.material.mica': 'Mica',
+  'desktop.material.acrylic': 'Acrylic',
+  'desktop.material.tabbed': 'Tabbed',
   'desktop.channel.title': 'Canal de atualização',
   'desktop.channel.description': 'Estável é adequado para o uso diário. Desenvolvimento oferece acesso antecipado a novos recursos, mas pode ser instável.',
   'desktop.channel.stable': 'Estável',

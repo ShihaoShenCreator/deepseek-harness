@@ -325,9 +325,9 @@ it.each(['win32', 'darwin'] as const)('exposes the window appearance bridge only
     return
   }
   await api.appearance!.get()
-  await api.appearance!.setTransparentWindow(true)
+  await api.appearance!.setWindowMaterial('acrylic')
   expect(electron.ipcRenderer.invoke.mock.calls).toEqual([
-    [DESKTOP_IPC.appearanceGet], [DESKTOP_IPC.appearanceSet, true],
+    [DESKTOP_IPC.appearanceGet], [DESKTOP_IPC.appearanceSet, 'acrylic'],
   ])
 })
 

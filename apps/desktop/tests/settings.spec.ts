@@ -25,9 +25,9 @@ it('creates a discoverable default file on first launch without touching other p
   writeFileSync(join(userData, 'keybindings.json'), 'existing shortcuts\n')
   expect(await readDesktopSettings(userData)).toEqual({
     updates: { allowTestAuthPopupWindow: false },
-    appearance: { transparentWindow: false },
+    appearance: { windowMaterial: 'none' },
   })
-  expect(readFileSync(path, 'utf8')).toBe('{\n  "updates": {\n    "allowTestAuthPopupWindow": false\n  },\n  "appearance": {\n    "transparentWindow": false\n  }\n}\n')
+  expect(readFileSync(path, 'utf8')).toBe('{\n  "updates": {\n    "allowTestAuthPopupWindow": false\n  },\n  "appearance": {\n    "windowMaterial": "none"\n  }\n}\n')
   expect(readFileSync(join(userData, 'keybindings.json'), 'utf8')).toBe('existing shortcuts\n')
 })
 
@@ -40,21 +40,21 @@ it.each(['{}', '{"updates": {}}', '{"other": 1, "updates": {"other": true}}'])('
 
 it('loads the window appearance preference independently and preserves its explicit value', async () => {
   const { userData, path } = fixture()
-  const raw = JSON.stringify({ appearance: { transparentWindow: true }, updates: { allowTestAuthPopupWindow: false } })
+  const raw = JSON.stringify({ appearance: { windowMaterial: 'acrylic' }, updates: { allowTestAuthPopupWindow: false } })
   writeFileSync(path, raw)
   expect(await readDesktopSettings(userData)).toEqual({
     updates: { allowTestAuthPopupWindow: false },
-    appearance: { transparentWindow: true },
+    appearance: { windowMaterial: 'acrylic' },
   })
   expect(readFileSync(path, 'utf8')).toBe(raw)
 })
 
 it('keeps a valid update preference when the window appearance field is invalid', async () => {
   const { userData, path } = fixture()
-  writeFileSync(path, '{"updates":{"allowTestAuthPopupWindow":true},"appearance":{"transparentWindow":"yes"}}')
+  writeFileSync(path, '{"updates":{"allowTestAuthPopupWindow":true},"appearance":{"windowMaterial":"glass"}}')
   const settings = await readDesktopSettings(userData)
   expect(settings.updates.allowTestAuthPopupWindow).toBe(true)
-  expect(settings.appearance.transparentWindow).toBe(false)
+  expect(settings.appearance.windowMaterial).toBe('none')
   expect(console.warn).toHaveBeenCalledWith(expect.stringContaining(path), expect.any(Error))
 })
 
